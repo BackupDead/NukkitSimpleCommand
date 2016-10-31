@@ -15,34 +15,38 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class CommandRegisterer {
-    public void register(Class<?> commandClass) throws CommandClassCorruptedException {
+    public static void register(Class<?> commandClass) throws CommandClassCorruptedException {
         Method[] methods = Arrays.stream(commandClass.getMethods())
                 .filter(m -> m.getName().equals("onCommand"))
                 .collect(Collectors.toList())
                 .toArray(new Method[0]);
 
         for (Method method : methods) {
-            Class<?>[] params = method.getParameterTypes();
+            Parameter[] params = method.getParameters();
             if (params.length == 0)
                 throw CommandClassCorruptedException.factory(method.getName(), "First parameter is not a CommandSender.");
-            if (params[0] != CommandSender.class)
+            if (params[0].getType() != CommandSender.class)
                 throw CommandClassCorruptedException.factory(method.getName(), "First parameter is not a CommandSender.");
+            else if (params[0].getAnnotation(ParameterDefine.class) != null)
+                throw CommandClassCorruptedException.factory(method.getName(), "CommandSender can not have ParameterDefine annotation.");
             else if (params[0].getAnnotation(ExactPlayerSearch.class) != null)
                 throw CommandClassCorruptedException.factory(method.getName(), "CommandSender can not have ExactPlayerSearch annotation.");
             else if (params[0].getAnnotation(Whitespaceable.class) != null)
                 throw CommandClassCorruptedException.factory(method.getName(), "CommandSender can not have Whitespaceable annotation.");
             for (int i = 1; i < params.length; i++)
-                if (params[i].isPrimitive()) {
+                if (params[i].getAnnotation(ParameterDefine.class) == null)
+                    throw CommandClassCorruptedException.factory(method.getName(), "All command parameters must have Parameter definition.");
+                else if (params[i].getType().isPrimitive()) {
                     if (params[i].getAnnotation(ExactPlayerSearch.class) != null)
                         throw CommandClassCorruptedException.factory(method.getName(), "Primitive can not have ExactPlayerSearch annotation.");
                     else if (params[i].getAnnotation(Whitespaceable.class) != null)
                         throw CommandClassCorruptedException.factory(method.getName(), "Primitive can not have Whitespaceable annotation.");
-                } else if (params[i] == String.class) {
+                } else if (params[i].getType() == String.class) {
                     if (params[i].getAnnotation(ExactPlayerSearch.class) != null)
                         throw CommandClassCorruptedException.factory(method.getName(), "String can not have ExactPlayerSearch annotation.");
                     else if (i != params.length - 1 && params[i].getAnnotation(Whitespaceable.class) != null)
                         throw CommandClassCorruptedException.factory(method.getName(), "String which is not the last parameter can not have Whitespaceable annotation.");
-                } else if (params[i] == Player.class) {
+                } else if (params[i].getType() == Player.class) {
                     if (params[i].getAnnotation(Whitespaceable.class) != null)
                         throw CommandClassCorruptedException.factory(method.getName(), "Player can not have Whitespaceable annotation.");
                 } else {
@@ -80,7 +84,7 @@ public class CommandRegisterer {
                         for (Parameter parameter : pa)
                             if (parameter.getType() != CommandSender.class)
                                 tempBuilder.append(" <")
-                                        .append(parameter.getName())
+                                        .append(parameter.getAnnotation(ParameterDefine.class).name())
                                         .append(">");
                         return tempBuilder.toString();
                     })
@@ -140,12 +144,17 @@ public class CommandRegisterer {
         Command made = new Command(name, description, usage, aliases) {
             @Override
             public boolean execute(CommandSender sender, String label, String[] args) {
+                if (!testPermission(sender))
+                    return true;
+
                 methodLoop: for (Method method : methods) {
                     List<Object> arguments = new ArrayList<>();
                     Parameter[] parameters = method.getParameters();
+                    parameters = Arrays.copyOfRange(parameters, 1, parameters.length);
                     if (!(parameters[parameters.length - 1].getAnnotation(Whitespaceable.class) != null
                             ? args.length >= parameters.length : args.length == parameters.length))
                         continue;
+                    arguments.add(sender);
 
                     for (int i = 0; i < parameters.length; i++)
                         if (parameters[i].getType() == Byte.TYPE) {
@@ -213,10 +222,12 @@ public class CommandRegisterer {
                         }
 
                     try {
-                        method.invoke(null, arguments);
+                        method.invoke(null, arguments.toArray());
                     } catch (IllegalAccessException | InvocationTargetException e) {
                         Server.getInstance().getLogger().logException(e);
                     }
+
+                    return true;
                 }
 
                 sender.sendMessage(_invalidUsage.replace("%USAGE%", getUsage()));
