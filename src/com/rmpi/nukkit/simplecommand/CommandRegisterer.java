@@ -158,8 +158,9 @@ public class CommandRegisterer {
                     List<Object> arguments = new ArrayList<>();
                     Parameter[] parameters = method.getParameters();
                     parameters = Arrays.copyOfRange(parameters, 1, parameters.length);
-                    if (!(parameters[parameters.length - 1].getAnnotation(Whitespaceable.class) != null
-                            ? args.length >= parameters.length : args.length == parameters.length))
+                    if (parameters.length == 0
+                            || parameters[parameters.length - 1].getAnnotation(Whitespaceable.class) == null
+                            ? args.length != parameters.length : args.length < parameters.length)
                         continue;
                     if (!parameters[0].getType().isInstance(sender))
                         continue;
