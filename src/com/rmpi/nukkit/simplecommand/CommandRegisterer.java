@@ -25,7 +25,7 @@ public class CommandRegisterer {
             Parameter[] params = method.getParameters();
             if (params.length == 0)
                 throw CommandClassCorruptedException.factory(method.getName(), "First parameter is not a CommandSender.");
-            if (params[0].getType() != CommandSender.class)
+            if (!CommandSender.class.isAssignableFrom(params[0].getType()))
                 throw CommandClassCorruptedException.factory(method.getName(), "First parameter is not a CommandSender.");
             else if (params[0].getAnnotation(ParameterDefine.class) != null)
                 throw CommandClassCorruptedException.factory(method.getName(), "CommandSender can not have ParameterDefine annotation.");
@@ -80,10 +80,17 @@ public class CommandRegisterer {
             usage = Arrays.stream(methods)
                     .map(Method::getParameters)
                     .map(pa -> {
-                        StringBuilder tempBuilder = new StringBuilder("/" + _name);
-                        for (Parameter parameter : pa)
-                            if (parameter.getType() != CommandSender.class)
-                                tempBuilder.append(" <")
+                        StringBuilder tempBuilder = new StringBuilder();
+                        if (pa[0].getType() != CommandSender.class) tempBuilder
+                                .append("Only ")
+                                .append(pa[0].getType().getSimpleName().toLowerCase())
+                                .append(" can use this command. - ");
+                        tempBuilder
+                                .append("/")
+                                .append(_name);
+                        for (Parameter parameter : Arrays.copyOfRange(pa, 1, pa.length))
+                                tempBuilder
+                                        .append(" <")
                                         .append(parameter.getAnnotation(ParameterDefine.class).name())
                                         .append(">");
                         return tempBuilder.toString();
@@ -153,6 +160,8 @@ public class CommandRegisterer {
                     parameters = Arrays.copyOfRange(parameters, 1, parameters.length);
                     if (!(parameters[parameters.length - 1].getAnnotation(Whitespaceable.class) != null
                             ? args.length >= parameters.length : args.length == parameters.length))
+                        continue;
+                    if (!parameters[0].getType().isInstance(sender))
                         continue;
                     arguments.add(sender);
 
