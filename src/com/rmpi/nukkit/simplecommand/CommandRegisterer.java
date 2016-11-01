@@ -157,12 +157,12 @@ public class CommandRegisterer {
                 methodLoop: for (Method method : methods) {
                     List<Object> arguments = new ArrayList<>();
                     Parameter[] parameters = method.getParameters();
+                    if (!parameters[0].getType().isInstance(sender))
+                        continue;
                     parameters = Arrays.copyOfRange(parameters, 1, parameters.length);
                     if (parameters.length == 0
                             || parameters[parameters.length - 1].getAnnotation(Whitespaceable.class) == null
                             ? args.length != parameters.length : args.length < parameters.length)
-                        continue;
-                    if (!parameters[0].getType().isInstance(sender))
                         continue;
                     arguments.add(sender);
 
